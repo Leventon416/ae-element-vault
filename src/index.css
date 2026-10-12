@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Adobe Spectrum Dark Design Tokens */
+    --spectrum-gray-50: #141414;
+    --spectrum-gray-100: #1e1e1e;
+    --spectrum-gray-200: #252525;
+    --spectrum-gray-300: #2e2e2e;
+    --spectrum-gray-400: #333333;
+    --spectrum-gray-500: #4a4a4a;
+    --spectrum-gray-600: #6e6e6e;
+    --spectrum-gray-700: #909090;
+    --spectrum-gray-800: #b3b3b3;
+    --spectrum-gray-900: #e1e1e1;
+
+    --spectrum-blue-500: #1473E6;
+    --spectrum-blue-600: #0d66d0;
+    --spectrum-blue-400: #2680eb;
+
+    --ae-bg: #1e1e1e;
+    --ae-panel: #252525;
+    --ae-surface: #2e2e2e;
+    --ae-border: #333333;
+    --ae-accent: #1473E6;
+    --ae-accent-hover: #2680eb;
+    --ae-text: #e1e1e1;
+    --ae-text-muted: #8e8e8e;
+  }
+
+  body {
+    background-color: #1e1e1e;
+    color: #e1e1e1;
+    font-size: 11px;
+    line-height: 1.4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* 4px sleek dark scrollbars matching native Adobe After Effects panels */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #191919;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #383838;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #525252;
+  }
+}
+
+/* Category navigation header styling */
+.ae-category-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

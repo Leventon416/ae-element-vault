@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest 
+    Version="9.0" 
+    ExtensionBundleId="com.vault.aeelementvault" 
+    ExtensionBundleVersion="1.0.0" 
+    ExtensionBundleName="AE Element Vault" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    
+    <ExtensionList>
+        <Extension Id="com.vault.aeelementvault.panel" Version="1.0.0" />
+    </ExtensionList>
+    
+    <ExecutionEnvironment>
+        <HostList>
+            <!-- Adobe After Effects CC 2019 (16.0) through AE 2025 (25.x) -->
+            <Host Name="AEFT" Version="[16.0,25.9]" />
+        </HostList>
+        <LocaleList>
+            <Locale Code="All" />
+        </LocaleList>
+        <RequiredRuntimeList>
+            <RequiredRuntime Name="CSXS" Version="9.0" />
+        </RequiredRuntimeList>
+    </ExecutionEnvironment>
+    
+    <DispatchInfoList>
+        <Extension Id="com.vault.aeelementvault.panel">
+            <DispatchInfo>
+                <Resources>
+                    <MainPath>./dist/index.html</MainPath>
+                    <ScriptPath>./host/index.jsx</ScriptPath>
+                    <CEFCommandLine>
+                        <Parameter>--enable-nodejs</Parameter>
+                        <Parameter>--mixed-context</Parameter>
+                        <Parameter>--allow-file-access-from-files</Parameter>
+                        <Parameter>--allow-file-access</Parameter>
+                    </CEFCommandLine>
+                </Resources>
+                <Lifecycle>
+                    <AutoVisible>true</AutoVisible>
+                </Lifecycle>
+                <UI>
+                    <!-- Type 'Panel' enables native docking and floating in After Effects workspaces -->
+                    <Type>Panel</Type>
+                    <Menu>AE Element Vault</Menu>
+                    <Geometry>
+                        <Size>
+                            <Height>650</Height>
+                            <Width>380</Width>
+                        </Size>
+                        <MinSize>
+                            <Height>300</Height>
+                            <Width>260</Width>
+                        </MinSize>
+                        <MaxSize>
+                            <Height>2400</Height>
+                            <Width>1800</Width>
+                        </MaxSize>
+                    </Geometry>
+                    <Icons>
+                        <Icon Type="Normal">./icons/icon-normal.png</Icon>
+                        <Icon Type="RollOver">./icons/icon-rollover.png</Icon>
+                        <Icon Type="DarkNormal">./icons/icon-dark.png</Icon>
+                        <Icon Type="DarkRollOver">./icons/icon-dark-rollover.png</Icon>
+                    </Icons>
+                </UI>
+            </DispatchInfo>
+        </Extension>
+    </DispatchInfoList>
+</ExtensionManifest>

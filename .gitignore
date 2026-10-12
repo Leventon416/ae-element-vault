@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build & Release Archives
+release/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS Metadata & System Artifacts
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor & IDE Directories
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary Test & Scratch Artifacts
+*.tmp
+scratch/temp/
+scratch/tmp/
+!scratch/*.mjs
+
+# Ensure Core Extension Architecture is Tracked
+!CSXS/
+!CSXS/manifest.xml
+!.debug
+!host/
+!host/*.jsx
+!src/
+!scripts/
+!scripts/*.mjs
+!install.bat
+!install.sh
+!uninstall.bat
+!uninstall.sh
+!package.json
+!package-lock.json
+!tsconfig.json
+!vite.config.ts
+!README.md
