@@ -21,6 +21,9 @@ interface AssetGridProps {
   onImportAep: () => void;
   searchQuery?: string;
   activeCategory?: string;
+  sortBy?: string;
+  filterEssentialOnly?: boolean;
+  filterHasAudio?: boolean;
   onAddMockItem?: () => Promise<void>;
   onInitLibraryFolder?: () => Promise<void>;
   isStorageLoading?: boolean;
@@ -42,6 +45,9 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
   onImportAep,
   searchQuery,
   activeCategory,
+  sortBy,
+  filterEssentialOnly,
+  filterHasAudio,
   onAddMockItem,
   onInitLibraryFolder,
   isStorageLoading = false,
@@ -61,16 +67,41 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Pagination for high-performance rendering (e.g. 200+ elements)
+  const ITEMS_PER_PAGE = 24;
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset to page 1 whenever search, filter, or sorting changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [items, searchQuery, activeCategory, sortBy, filterEssentialOnly, filterHasAudio]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
+  const activePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (activePage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, items.length);
+  const paginatedItems = items.slice(startIndex, endIndex);
+
+  // Scroll grid to top on page change
+  useEffect(() => {
+    if (containerRef.current) {
+      const scrollableArea = containerRef.current.querySelector('#asset-grid-container')?.parentElement;
+      if (scrollableArea) {
+        scrollableArea.scrollTop = 0;
+      }
+    }
+  }, [activePage]);
+
   // Set selected item on first load or when items change
   useEffect(() => {
-    if (items.length > 0) {
-      if (!selectedItemId || !items.some((i) => i.id === selectedItemId)) {
-        setSelectedItemId(items[0].id);
+    if (paginatedItems.length > 0) {
+      if (!selectedItemId || !paginatedItems.some((i) => i.id === selectedItemId)) {
+        setSelectedItemId(paginatedItems[0].id);
       }
     } else {
       setSelectedItemId(null);
     }
-  }, [items, selectedItemId]);
+  }, [paginatedItems, selectedItemId]);
 
   const handleDensityChange = (density: ViewDensity) => {
     setViewDensity(density);
@@ -81,40 +112,40 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
 
   // Keyboard navigation across the grid
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (items.length === 0) return;
-    const currentIndex = items.findIndex((i) => i.id === selectedItemId);
+    if (paginatedItems.length === 0) return;
+    const currentIndex = paginatedItems.findIndex((i) => i.id === selectedItemId);
     const cols = viewDensity === 'compact' ? 3 : 2; // Approximate column step
 
     switch (e.key) {
       case 'ArrowRight': {
         e.preventDefault();
-        const next = Math.min(currentIndex + 1, items.length - 1);
-        setSelectedItemId(items[next].id);
+        const next = Math.min(currentIndex + 1, paginatedItems.length - 1);
+        setSelectedItemId(paginatedItems[next].id);
         break;
       }
       case 'ArrowLeft': {
         e.preventDefault();
         const prev = Math.max(currentIndex - 1, 0);
-        setSelectedItemId(items[prev].id);
+        setSelectedItemId(paginatedItems[prev].id);
         break;
       }
       case 'ArrowDown': {
         e.preventDefault();
-        const nextRow = Math.min(currentIndex + cols, items.length - 1);
-        setSelectedItemId(items[nextRow].id);
+        const nextRow = Math.min(currentIndex + cols, paginatedItems.length - 1);
+        setSelectedItemId(paginatedItems[nextRow].id);
         break;
       }
       case 'ArrowUp': {
         e.preventDefault();
         const prevRow = Math.max(currentIndex - cols, 0);
-        setSelectedItemId(items[prevRow].id);
+        setSelectedItemId(paginatedItems[prevRow].id);
         break;
       }
       case 'Enter':
       case ' ': {
         e.preventDefault();
         if (selectedItemId) {
-          const item = items.find((i) => i.id === selectedItemId);
+          const item = paginatedItems.find((i) => i.id === selectedItemId);
           if (item && onInsert) {
             onInsert(item);
           }
@@ -212,7 +243,7 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
               : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2'
           }
         >
-          {items.map((item) => (
+          {paginatedItems.map((item) => (
             <AssetCard
               key={item.id}
               item={item}
@@ -233,6 +264,38 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Pagination Controls Bar */}
+      {totalPages > 1 && (
+        <div
+          id="pagination-controls-bar"
+          className="flex items-center justify-between px-3 py-2 border-t border-[#2b2b2b] bg-[#1a1a1a] text-[10px] select-none flex-shrink-0"
+        >
+          <button
+            id="prev-page-btn"
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={activePage === 1}
+            className="px-2.5 py-1 rounded bg-[#252525] hover:bg-[#303030] disabled:opacity-30 disabled:pointer-events-none text-white font-medium border border-[#333333] transition-all cursor-pointer flex items-center gap-1"
+          >
+            <span>← Previous</span>
+          </button>
+
+          <span id="pagination-counter" className="text-[#a0a0a0] font-mono text-[10px]">
+            Showing {startIndex + 1}-{endIndex} of {items.length} (Page {activePage} of {totalPages})
+          </span>
+
+          <button
+            id="next-page-btn"
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={activePage === totalPages}
+            className="px-2.5 py-1 rounded bg-[#252525] hover:bg-[#303030] disabled:opacity-30 disabled:pointer-events-none text-white font-medium border border-[#333333] transition-all cursor-pointer flex items-center gap-1"
+          >
+            <span>Next →</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

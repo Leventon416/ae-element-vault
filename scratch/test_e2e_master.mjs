@@ -48,11 +48,11 @@ async function run() {
         const manifest = fs.readFileSync(manifestPath, 'utf8');
         const debug = fs.readFileSync(debugPath, 'utf8');
         const hasId = manifest.includes('com.vault.aeelementvault');
-        const hasHost = manifest.includes('Host Name="AEFT"') && manifest.includes('Version="[16.0,25.9]"');
+        const hasHost = manifest.includes('Host Name="AEFT"') && (manifest.includes('Version="[16.0,99.9]"') || manifest.includes('Version="[16.0,25.9]"'));
         const hasNode = manifest.includes('--enable-nodejs') && manifest.includes('--mixed-context');
         const hasPort = debug.includes('Port="8088"');
         ok = hasId && hasHost && hasNode && hasPort;
-        details = 'AEFT [16.0,25.9], CEF Node.js enabled, Port 8088 configured.';
+        details = 'AEFT [16.0,99.9], CEF Node.js enabled, Port 8088 configured.';
       } else {
         details = 'Missing CSXS/manifest.xml or .debug';
       }

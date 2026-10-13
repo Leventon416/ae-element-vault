@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+  --color-vault-border: #383838;
+  --color-vault-card: #202020;
+  --color-vault-bg: #1e1e1e;
+}
+
 @layer base {
   :root {
     /* Adobe Spectrum Dark Design Tokens */

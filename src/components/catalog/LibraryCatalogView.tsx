@@ -25,6 +25,9 @@ interface LibraryCatalogViewProps {
   ) => void;
   searchQuery?: string;
   activeCategory?: string;
+  sortBy?: string;
+  filterEssentialOnly?: boolean;
+  filterHasAudio?: boolean;
 }
 
 export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
@@ -42,6 +45,9 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
   onInsert,
   searchQuery,
   activeCategory,
+  sortBy,
+  filterEssentialOnly,
+  filterHasAudio,
 }) => {
   const [customizingItem, setCustomizingItem] = useState<LibraryItem | null>(null);
   // Persist parameter edits in local state while browsing across elements
@@ -112,6 +118,9 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
             onImportAep={onImportAep}
             searchQuery={searchQuery}
             activeCategory={activeCategory}
+            sortBy={sortBy}
+            filterEssentialOnly={filterEssentialOnly}
+            filterHasAudio={filterHasAudio}
             onAddMockItem={onAddMockItem}
             onInitLibraryFolder={onInitLibraryFolder}
             isStorageLoading={isStorageLoading}

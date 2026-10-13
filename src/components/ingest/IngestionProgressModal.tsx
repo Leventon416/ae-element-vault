@@ -56,7 +56,7 @@ export const IngestionProgressModal: React.FC<IngestionProgressModalProps> = ({
     >
       <div
         id="ingest-modal-container"
-        className="w-full max-w-lg bg-[#202020] border border-[#383838] rounded-2xl shadow-2xl shadow-black/80 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg max-h-[85vh] bg-[#202020] border border-[#383838] rounded-2xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#303030] bg-[#242424]">
@@ -88,7 +88,7 @@ export const IngestionProgressModal: React.FC<IngestionProgressModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        <div className="overflow-y-auto px-6 py-4 flex-1 space-y-4 min-h-0">
           {/* Progress Bar & Percentage */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px] font-mono">
@@ -225,6 +225,16 @@ export const IngestionProgressModal: React.FC<IngestionProgressModalProps> = ({
                   <span className="text-[8px] text-[#8e8e8e] uppercase font-semibold">Essential</span>
                 </div>
               </div>
+              <button
+                id="view-in-library-success-btn"
+                type="button"
+                onClick={onViewInLibrary}
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-[#1473E6] hover:bg-[#0d66d0] active:bg-blue-800 text-white font-bold text-xs shadow-md shadow-blue-900/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Package className="w-4 h-4" />
+                <span>View in Library</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
@@ -308,7 +318,7 @@ export const IngestionProgressModal: React.FC<IngestionProgressModalProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-[#303030] bg-[#242424]">
+        <div className="flex items-center justify-between flex-shrink-0 border-t border-vault-border/50 px-6 py-4 bg-vault-card/95 sticky bottom-0 z-10">
           <div>
             {isIngesting && (
               <button

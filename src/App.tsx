@@ -7,6 +7,7 @@ import { StatusBar } from './components/layout/StatusBar';
 import { LibraryCatalogView } from './components/catalog/LibraryCatalogView';
 import { ProjectDissectorView } from './components/dissector/ProjectDissectorView';
 import { IngestionProgressModal } from './components/ingest/IngestionProgressModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { useLibrary } from './hooks/useLibrary';
 import { useScanner } from './hooks/useScanner';
@@ -211,31 +212,39 @@ export const App: React.FC = () => {
           />
 
           {/* Catalog Asset Grid & Hover-Scrub Cards */}
-          <div className="flex-1 overflow-y-auto">
-            <LibraryCatalogView
-              items={library.filteredItems}
-              storagePath={library.storagePath}
-              favorites={library.favorites}
-              onToggleFavorite={library.toggleFavorite}
-              onDeleteItem={library.deleteItem}
-              onUpdateItem={library.updateItem}
-              onAddMockItem={library.addMockItem}
-              onInitLibraryFolder={library.initLibraryFolder}
-              isStorageLoading={library.isStorageLoading}
-              onClearFilters={() => {
-                library.setActiveCategory('All');
-                library.setSearchQuery('');
-                library.setFilterEssentialOnly(false);
-                library.setFilterHasAudio(false);
-              }}
-              onImportAep={() => {
-                const headerInput = document.querySelector('#header-aep-file-input') as HTMLInputElement;
-                headerInput?.click();
-              }}
-              searchQuery={library.searchQuery}
-              activeCategory={library.activeCategory}
-              onInsert={handleInsertElement}
-            />
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <ErrorBoundary
+              fallbackTitle="Error loading Library Catalog"
+              onReset={() => library.refreshLibrary()}
+            >
+              <LibraryCatalogView
+                items={library.filteredItems}
+                storagePath={library.storagePath}
+                favorites={library.favorites}
+                onToggleFavorite={library.toggleFavorite}
+                onDeleteItem={library.deleteItem}
+                onUpdateItem={library.updateItem}
+                onAddMockItem={library.addMockItem}
+                onInitLibraryFolder={library.initLibraryFolder}
+                isStorageLoading={library.isStorageLoading}
+                onClearFilters={() => {
+                  library.setActiveCategory('All');
+                  library.setSearchQuery('');
+                  library.setFilterEssentialOnly(false);
+                  library.setFilterHasAudio(false);
+                }}
+                onImportAep={() => {
+                  const headerInput = document.querySelector('#header-aep-file-input') as HTMLInputElement;
+                  headerInput?.click();
+                }}
+                searchQuery={library.searchQuery}
+                activeCategory={library.activeCategory}
+                sortBy={library.sortBy}
+                filterEssentialOnly={library.filterEssentialOnly}
+                filterHasAudio={library.filterHasAudio}
+                onInsert={handleInsertElement}
+              />
+            </ErrorBoundary>
           </div>
         </div>
 

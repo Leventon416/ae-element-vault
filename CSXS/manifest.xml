@@ -12,8 +12,8 @@
     
     <ExecutionEnvironment>
         <HostList>
-            <!-- Adobe After Effects CC 2019 (16.0) through AE 2025 (25.x) -->
-            <Host Name="AEFT" Version="[16.0,25.9]" />
+            <!-- Adobe After Effects CC 2019 (16.0) through AE 2026+ (99.9) -->
+            <Host Name="AEFT" Version="[16.0,99.9]" />
         </HostList>
         <LocaleList>
             <Locale Code="All" />
