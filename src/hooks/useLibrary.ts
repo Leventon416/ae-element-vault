@@ -5,6 +5,8 @@ import {
   saveItem,
   deleteItem as deleteItemFromDb,
   deleteItemFromMemory,
+  deleteBatchItems as deleteBatchItemsFromDb,
+  deleteBatchItemsFromMemory,
   initLibrary,
   getLibraryPath,
 } from '../lib/storageService';
@@ -37,6 +39,7 @@ export interface UseLibraryReturn {
   toggleFavorite: (itemId: string) => void;
   addItem: (item: LibraryItem) => Promise<void>;
   deleteItem: (itemId: string) => Promise<void>;
+  deleteBatchItems: (itemIds: string[]) => Promise<void>;
   refreshLibrary: () => Promise<void>;
   initLibraryFolder: () => Promise<void>;
   addMockItem: () => Promise<void>;
@@ -183,6 +186,56 @@ export function useLibrary(): UseLibraryReturn {
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(itemId);
+        return next;
+      });
+      setTimeout(() => {
+        setDeletionToast(null);
+        setStorageStatusMsg(null);
+      }, 2500);
+    }
+  }, [refreshLibrary]);
+
+  const deleteBatchItems = useCallback(async (itemIds: string[]) => {
+    if (!itemIds || itemIds.length === 0) return;
+    const count = itemIds.length;
+    const idSet = new Set(itemIds);
+
+    // 1. Track deleting items in deletingIds Set
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      for (const id of itemIds) {
+        next.add(id);
+      }
+      return next;
+    });
+
+    // 2. Show progress toast
+    const progressMsg = `Removing ${count} element${count !== 1 ? 's' : ''} from vault...`;
+    setDeletionToast(progressMsg);
+    setStorageStatusMsg(progressMsg);
+
+    // 3. Optimistic state update: immediate filter from in-memory cache and UI state
+    deleteBatchItemsFromMemory(itemIds);
+    setItems((prev) => prev.filter((i) => !idSet.has(i.id)));
+    setLibraryDb((prev) => (prev ? { ...prev, items: prev.items.filter((i) => !idSet.has(i.id)) } : null));
+
+    try {
+      // 4. Background batch deletion on disk
+      await deleteBatchItemsFromDb(itemIds);
+      const successMsg = `✓ ${count} element${count !== 1 ? 's' : ''} removed`;
+      setDeletionToast(successMsg);
+      setStorageStatusMsg(successMsg);
+    } catch (err: any) {
+      console.error('Error batch removing items from library:', err);
+      setDeletionToast(`Error removing: ${err.message}`);
+      setStorageStatusMsg(`Error removing: ${err.message}`);
+      refreshLibrary();
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        for (const id of itemIds) {
+          next.delete(id);
+        }
         return next;
       });
       setTimeout(() => {
@@ -415,6 +468,7 @@ export function useLibrary(): UseLibraryReturn {
     toggleFavorite,
     addItem,
     deleteItem,
+    deleteBatchItems,
     refreshLibrary,
     initLibraryFolder,
     addMockItem,

@@ -96,6 +96,18 @@ export function deleteItemFromMemory(id: string): LibraryDatabase | null {
 }
 
 /**
+ * In-memory batch deletion helper that immediately removes multiple items from cachedDb.
+ */
+export function deleteBatchItemsFromMemory(ids: string[]): LibraryDatabase | null {
+  if (cachedDb) {
+    const idSet = new Set(ids);
+    cachedDb.items = cachedDb.items.filter((i) => !idSet.has(i.id));
+    return cachedDb;
+  }
+  return null;
+}
+
+/**
  * Creates default empty database structure
  */
 function createDefaultDatabase(libPath: string): LibraryDatabase {
@@ -295,6 +307,75 @@ export async function deleteItem(id: string): Promise<void> {
   }
 
   // Persist database.json asynchronously using compact JSON
+  if (node) {
+    const { fs, path } = node;
+    const dbFile = path.join(libPath, 'database.json');
+    const compactJson = JSON.stringify(currentDb);
+    if (typeof fs.promises?.writeFile === 'function') {
+      await fs.promises.writeFile(dbFile, compactJson, 'utf-8');
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        fs.writeFile(dbFile, compactJson, 'utf-8', (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
+  } else if (typeof window !== 'undefined') {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentDb));
+  }
+}
+
+/**
+ * Deletes multiple LibraryItems by ids and removes their associated physical assets.
+ * 1. Removes all matching IDs from in-memory cachedDb in one pass.
+ * 2. In a background microtask, unlinks physical .aep and preview files for all items.
+ * 3. Persists compact database.json to disk in a single write operation.
+ */
+export async function deleteBatchItems(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+
+  const currentDb = await getLibrary();
+  const libPath = getLibraryPath();
+  const node = getNodeEnv();
+
+  const idSet = new Set(ids);
+  const itemsToDelete = currentDb.items.filter((i) => idSet.has(i.id));
+
+  // 1. Remove all matching IDs from currentDb.items in memory first
+  currentDb.items = currentDb.items.filter((i) => !idSet.has(i.id));
+  cachedDb = currentDb;
+
+  // 2. In background microtask, unlink physical .aep and preview files for all deleted items
+  if (node && itemsToDelete.length > 0) {
+    const { fs } = node;
+    queueMicrotask(() => {
+      for (const item of itemsToDelete) {
+        try {
+          const aep = item.aepPath;
+          const preview = item.previewPath;
+          if (aep && aep.startsWith(libPath) && fs.existsSync(aep)) {
+            if (typeof fs.promises?.unlink === 'function') {
+              fs.promises.unlink(aep).catch((e: any) => console.warn('Failed to delete aep file:', e));
+            } else {
+              fs.unlink(aep, () => {});
+            }
+          }
+          if (preview && preview.startsWith(libPath) && fs.existsSync(preview)) {
+            if (typeof fs.promises?.unlink === 'function') {
+              fs.promises.unlink(preview).catch((e: any) => console.warn('Failed to delete preview file:', e));
+            } else {
+              fs.unlink(preview, () => {});
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to delete physical files for item:', item.id, e);
+        }
+      }
+    });
+  }
+
+  // 3. Write compact database.json to disk in a single write operation
   if (node) {
     const { fs, path } = node;
     const dbFile = path.join(libPath, 'database.json');

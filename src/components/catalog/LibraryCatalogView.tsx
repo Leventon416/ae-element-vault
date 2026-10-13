@@ -12,6 +12,7 @@ interface LibraryCatalogViewProps {
   favorites: Record<string, boolean>;
   onToggleFavorite: (id: string) => void;
   onDeleteItem: (id: string) => void;
+  onDeleteBatchItems?: (ids: string[]) => Promise<void>;
   onUpdateItem: (item: LibraryItem) => Promise<void>;
   onAddMockItem: () => Promise<void>;
   onInitLibraryFolder: () => Promise<void>;
@@ -37,6 +38,7 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
   favorites,
   onToggleFavorite,
   onDeleteItem,
+  onDeleteBatchItems,
   onUpdateItem,
   onAddMockItem,
   onInitLibraryFolder,
@@ -113,6 +115,14 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
                 setCustomizingItem(null);
               }
               onDeleteItem(id);
+            }}
+            onDeleteBatchItems={async (ids) => {
+              if (customizingItem && ids.includes(customizingItem.id)) {
+                setCustomizingItem(null);
+              }
+              if (onDeleteBatchItems) {
+                await onDeleteBatchItems(ids);
+              }
             }}
             onUpdateItem={onUpdateItem}
             storagePath={storagePath}

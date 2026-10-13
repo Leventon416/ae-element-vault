@@ -29,7 +29,8 @@ import { getLibraryPath } from '../../lib/storageService';
 
 interface AssetCardProps {
   item: LibraryItem;
-  isSelected: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
   isCompact?: boolean;
   isFavorited: boolean;
   onSelect: (item: LibraryItem) => void;
@@ -47,7 +48,8 @@ interface AssetCardProps {
 
 export const AssetCard: React.FC<AssetCardProps> = ({
   item,
-  isSelected,
+  isSelected = false,
+  onToggleSelect,
   isCompact = false,
   isFavorited,
   onSelect,
@@ -282,7 +284,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
           : ''
       } ${
         isSelected && !isEffectivelyDeleting
-          ? 'border-[#1473E6] ring-2 ring-[#1473E6]/50 shadow-lg shadow-blue-900/30 bg-[#252525]'
+          ? 'border-blue-500 ring-2 ring-blue-500/80 bg-blue-500/5 shadow-lg shadow-blue-900/30'
           : 'border-[#333333] hover:border-[#4d4d4d] hover:bg-[#262626] shadow-sm'
       }`}
     >
@@ -315,6 +317,35 @@ export const AssetCard: React.FC<AssetCardProps> = ({
           </div>
         )}
 
+        {/* Selection Checkbox at Top-Left of Thumbnail */}
+        <div
+          className={`absolute top-1.5 left-1.5 z-20 transition-opacity ${
+            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 hover:opacity-100'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <label
+            htmlFor={`select-card-${item.id}`}
+            className="flex items-center justify-center p-1 rounded-md bg-black/85 hover:bg-black border border-white/20 hover:border-blue-400 cursor-pointer shadow-md backdrop-blur-xs transition-colors"
+            title={isSelected ? 'Deselect element' : 'Select element'}
+          >
+            <input
+              id={`select-card-${item.id}`}
+              data-testid={`select-card-${item.id}`}
+              type="checkbox"
+              checked={Boolean(isSelected)}
+              onChange={(e) => {
+                e.stopPropagation();
+                if (onToggleSelect) {
+                  onToggleSelect(item.id);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-3.5 h-3.5 rounded bg-[#181818] border-[#444] text-blue-500 accent-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+            />
+          </label>
+        </div>
+
         {/* Dynamic Scrubber Gradient Progress Bar on Hover */}
         {hasFrames && hoverFrame !== null && (
           <>
@@ -330,7 +361,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
             {/* Floating Frame Counter Badge */}
             <div
               id={`scrub-badge-${item.id}`}
-              className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/85 text-[8px] font-mono text-cyan-300 border border-cyan-500/40 shadow-md z-20 backdrop-blur-xs flex items-center gap-1"
+              className="absolute top-1.5 left-8 px-1.5 py-0.5 rounded bg-black/85 text-[8px] font-mono text-cyan-300 border border-cyan-500/40 shadow-md z-20 backdrop-blur-xs flex items-center gap-1"
             >
               <span>Frame {hoverFrame + 1}/{item.previewFrames!.length}</span>
             </div>
@@ -339,7 +370,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
 
         {/* Metadata Overlay: Top-Left (Resolution & FPS Badges) */}
         {hoverFrame === null && (
-          <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10 pointer-events-none">
+          <div className="absolute top-1.5 left-8 flex items-center gap-1 z-10 pointer-events-none">
             <span
               id={`res-badge-${item.id}`}
               className="px-1.5 py-0.2 rounded bg-black/75 border border-white/10 text-white font-mono text-[8px] font-semibold tracking-wider backdrop-blur-xs shadow-xs"

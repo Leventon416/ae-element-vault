@@ -227,6 +227,7 @@ export const App: React.FC = () => {
                 favorites={library.favorites}
                 onToggleFavorite={library.toggleFavorite}
                 onDeleteItem={library.deleteItem}
+                onDeleteBatchItems={library.deleteBatchItems}
                 onUpdateItem={library.updateItem}
                 onAddMockItem={library.addMockItem}
                 onInitLibraryFolder={library.initLibraryFolder}
