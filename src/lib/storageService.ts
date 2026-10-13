@@ -67,6 +67,35 @@ export function getLibraryPath(): string {
 }
 
 /**
+ * In-memory cache for LibraryDatabase to prevent repeated multi-megabyte disk I/O and parsing
+ */
+let cachedDb: LibraryDatabase | null = null;
+
+export function getCachedDb(): LibraryDatabase | null {
+  return cachedDb;
+}
+
+export function setCachedDb(db: LibraryDatabase | null): void {
+  cachedDb = db;
+}
+
+export function invalidateDatabaseCache(): void {
+  cachedDb = null;
+}
+
+/**
+ * In-memory deletion helper that immediately removes an item from cachedDb,
+ * allowing instant optimistic updates before filesystem persistence completes.
+ */
+export function deleteItemFromMemory(id: string): LibraryDatabase | null {
+  if (cachedDb) {
+    cachedDb.items = cachedDb.items.filter((i) => i.id !== id);
+    return cachedDb;
+  }
+  return null;
+}
+
+/**
  * Creates default empty database structure
  */
 function createDefaultDatabase(libPath: string): LibraryDatabase {
@@ -99,7 +128,8 @@ export async function initLibrary(): Promise<string> {
 
       if (!fs.existsSync(dbFile)) {
         const initialDb = createDefaultDatabase(libPath);
-        fs.writeFileSync(dbFile, JSON.stringify(initialDb, null, 2), 'utf-8');
+        cachedDb = initialDb;
+        fs.writeFileSync(dbFile, JSON.stringify(initialDb), 'utf-8');
       }
       return libPath;
     } catch (err: any) {
@@ -113,6 +143,7 @@ export async function initLibrary(): Promise<string> {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!stored) {
       const initialDb = createDefaultDatabase(libPath);
+      cachedDb = initialDb;
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialDb));
     }
   }
@@ -121,9 +152,14 @@ export async function initLibrary(): Promise<string> {
 }
 
 /**
- * Reads and returns the complete LibraryDatabase
+ * Reads and returns the complete LibraryDatabase.
+ * Uses in-memory cachedDb if available to avoid repeated 11MB file parsing.
  */
-export async function getLibrary(): Promise<LibraryDatabase> {
+export async function getLibrary(forceReload = false): Promise<LibraryDatabase> {
+  if (cachedDb && !forceReload) {
+    return cachedDb;
+  }
+
   const libPath = getLibraryPath();
   const node = getNodeEnv();
 
@@ -138,12 +174,14 @@ export async function getLibrary(): Promise<LibraryDatabase> {
 
       const content = fs.readFileSync(dbFile, 'utf-8');
       const parsed: LibraryDatabase = JSON.parse(content);
+      cachedDb = parsed;
       return parsed;
     } catch (err: any) {
       console.warn('Error reading filesystem database, resetting to default:', err);
       const fallback = createDefaultDatabase(libPath);
+      cachedDb = fallback;
       try {
-        fs.writeFileSync(dbFile, JSON.stringify(fallback, null, 2), 'utf-8');
+        fs.writeFileSync(dbFile, JSON.stringify(fallback), 'utf-8');
       } catch {}
       return fallback;
     }
@@ -154,17 +192,22 @@ export async function getLibrary(): Promise<LibraryDatabase> {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (stored) {
       try {
-        return JSON.parse(stored) as LibraryDatabase;
+        const parsed = JSON.parse(stored) as LibraryDatabase;
+        cachedDb = parsed;
+        return parsed;
       } catch (e) {
         console.warn('Failed to parse localStorage database, resetting:', e);
       }
     }
     const defaultDb = createDefaultDatabase(libPath);
+    cachedDb = defaultDb;
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultDb));
     return defaultDb;
   }
 
-  return createDefaultDatabase(libPath);
+  const defaultDb = createDefaultDatabase(libPath);
+  cachedDb = defaultDb;
+  return defaultDb;
 }
 
 /**
@@ -188,49 +231,84 @@ export async function saveItem(item: LibraryItem): Promise<void> {
     currentDb.categories.push(item.category);
   }
 
-  // Persist
+  cachedDb = currentDb;
+
+  // Persist with compact JSON
   if (node) {
     const { fs, path } = node;
     const dbFile = path.join(libPath, 'database.json');
-    fs.writeFileSync(dbFile, JSON.stringify(currentDb, null, 2), 'utf-8');
+    fs.writeFileSync(dbFile, JSON.stringify(currentDb), 'utf-8');
   } else if (typeof window !== 'undefined') {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentDb));
   }
 }
 
 /**
- * Deletes a LibraryItem by id and removes its associated local asset/preview files if present
+ * Deletes a LibraryItem by id and removes its associated local asset/preview files.
+ * Optimizations:
+ * 1. Removes the item from in-memory cachedDb immediately.
+ * 2. Asynchronously unlinks physical files using non-blocking microtasks.
+ * 3. Persists database.json asynchronously using compact JSON (JSON.stringify(currentDb)).
  */
 export async function deleteItem(id: string): Promise<void> {
   const currentDb = await getLibrary();
   const libPath = getLibraryPath();
   const node = getNodeEnv();
 
-  const itemToDelete = currentDb.items.find((i) => i.id === id);
+  // Find and remove item from memory first
+  const itemIndex = currentDb.items.findIndex((i) => i.id === id);
+  const itemToDelete = itemIndex >= 0 ? currentDb.items[itemIndex] : undefined;
 
-  // If node is available, delete associated .aep and preview files if stored in our library
+  if (itemIndex >= 0) {
+    currentDb.items.splice(itemIndex, 1);
+  } else {
+    currentDb.items = currentDb.items.filter((i) => i.id !== id);
+  }
+  cachedDb = currentDb;
+
+  // Asynchronously remove physical asset files using non-blocking microtask
   if (node && itemToDelete) {
     const { fs } = node;
-    try {
-      if (itemToDelete.aepPath && itemToDelete.aepPath.startsWith(libPath) && fs.existsSync(itemToDelete.aepPath)) {
-        fs.unlinkSync(itemToDelete.aepPath);
+    const aepPath = itemToDelete.aepPath;
+    const previewPath = itemToDelete.previewPath;
+
+    queueMicrotask(() => {
+      try {
+        if (aepPath && aepPath.startsWith(libPath) && fs.existsSync(aepPath)) {
+          if (typeof fs.promises?.unlink === 'function') {
+            fs.promises.unlink(aepPath).catch((e: any) => console.warn('Failed to delete aep file:', e));
+          } else {
+            fs.unlink(aepPath, () => {});
+          }
+        }
+        if (previewPath && previewPath.startsWith(libPath) && fs.existsSync(previewPath)) {
+          if (typeof fs.promises?.unlink === 'function') {
+            fs.promises.unlink(previewPath).catch((e: any) => console.warn('Failed to delete preview file:', e));
+          } else {
+            fs.unlink(previewPath, () => {});
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to delete physical files for item:', id, e);
       }
-      if (itemToDelete.previewPath && itemToDelete.previewPath.startsWith(libPath) && fs.existsSync(itemToDelete.previewPath)) {
-        fs.unlinkSync(itemToDelete.previewPath);
-      }
-    } catch (e) {
-      console.warn('Failed to delete physical files for item:', id, e);
-    }
+    });
   }
 
-  // Update item list
-  currentDb.items = currentDb.items.filter((i) => i.id !== id);
-
-  // Persist
+  // Persist database.json asynchronously using compact JSON
   if (node) {
     const { fs, path } = node;
     const dbFile = path.join(libPath, 'database.json');
-    fs.writeFileSync(dbFile, JSON.stringify(currentDb, null, 2), 'utf-8');
+    const compactJson = JSON.stringify(currentDb);
+    if (typeof fs.promises?.writeFile === 'function') {
+      await fs.promises.writeFile(dbFile, compactJson, 'utf-8');
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        fs.writeFile(dbFile, compactJson, 'utf-8', (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
   } else if (typeof window !== 'undefined') {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentDb));
   }

@@ -4,6 +4,7 @@ import {
   Plus,
   Sliders,
   Trash2,
+  Loader2,
   Volume2,
   Star,
   Type,
@@ -34,13 +35,14 @@ interface AssetCardProps {
   onSelect: (item: LibraryItem) => void;
   onToggleFavorite: (id: string) => void;
   onInsert?: (item: LibraryItem) => void;
-  onDeleteItem: (id: string) => void;
+  onDeleteItem: (id: string) => void | Promise<void>;
   onUpdateItem: (item: LibraryItem) => Promise<void>;
   storagePath: string;
   onCustomize?: (item: LibraryItem) => void;
   onDragStart?: (item: LibraryItem, e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   isDragging?: boolean;
+  isDeleting?: boolean;
 }
 
 export const AssetCard: React.FC<AssetCardProps> = ({
@@ -58,13 +60,16 @@ export const AssetCard: React.FC<AssetCardProps> = ({
   onDragStart,
   onDragEnd,
   isDragging = false,
+  isDeleting = false,
 }) => {
   const [hoverFrame, setHoverFrame] = useState<number | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'text' | 'controls'>('text');
   const [insertSuccess, setInsertSuccess] = useState<boolean>(false);
   const [isLocalDragging, setIsLocalDragging] = useState<boolean>(false);
+  const [localDeleting, setLocalDeleting] = useState<boolean>(false);
 
+  const isEffectivelyDeleting = Boolean(isDeleting || localDeleting);
   const isEffectivelyDragging = Boolean(isDragging || isLocalDragging);
 
   // Inspector property state
@@ -264,18 +269,32 @@ export const AssetCard: React.FC<AssetCardProps> = ({
       id={isSelected ? `selected-card-${item.id}` : `asset-card-${item.id}`}
       data-card-id={item.id}
       data-selected={isSelected ? 'true' : 'false'}
-      draggable={true}
+      data-deleting={isEffectivelyDeleting ? 'true' : 'false'}
+      draggable={!isEffectivelyDeleting}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onClick={() => onSelect(item)}
+      onClick={() => !isEffectivelyDeleting && onSelect(item)}
       className={`group relative rounded-xl transition-all duration-200 select-none flex flex-col bg-[#222222] border overflow-hidden ${
-        isEffectivelyDragging ? 'opacity-50 scale-[0.98] ring-2 ring-[#1473E6]/60 shadow-md' : ''
+        isEffectivelyDeleting
+          ? 'opacity-60 pointer-events-none ring-1 ring-rose-500/50'
+          : isEffectivelyDragging
+          ? 'opacity-50 scale-[0.98] ring-2 ring-[#1473E6]/60 shadow-md'
+          : ''
       } ${
-        isSelected
+        isSelected && !isEffectivelyDeleting
           ? 'border-[#1473E6] ring-2 ring-[#1473E6]/50 shadow-lg shadow-blue-900/30 bg-[#252525]'
           : 'border-[#333333] hover:border-[#4d4d4d] hover:bg-[#262626] shadow-sm'
       }`}
     >
+      {/* Animated mini deletion progress indicator bar while deletion completes */}
+      {isEffectivelyDeleting && (
+        <div
+          id={`deleting-progress-bar-${item.id}`}
+          className="absolute top-0 left-0 right-0 h-1 bg-rose-950/80 z-30 overflow-hidden"
+        >
+          <div className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 w-full animate-pulse" />
+        </div>
+      )}
       {/* 1. 16:9 Aspect Ratio Thumbnail Container with Kinetic Hover-Scrubbing */}
       <div
         id={`thumbnail-card-${item.id}`}
@@ -539,14 +558,26 @@ export const AssetCard: React.FC<AssetCardProps> = ({
           <button
             id={`delete-item-btn-${item.id}`}
             type="button"
-            onClick={(e) => {
+            disabled={isEffectivelyDeleting}
+            onClick={async (e) => {
               e.stopPropagation();
-              onDeleteItem(item.id);
+              if (isEffectivelyDeleting) return;
+              setLocalDeleting(true);
+              try {
+                await onDeleteItem(item.id);
+              } catch (err) {
+                console.error('Failed to delete item:', err);
+                setLocalDeleting(false);
+              }
             }}
-            className="p-1 rounded bg-[#2a2a2a] hover:bg-rose-500/20 text-[#6e6e6e] hover:text-rose-400 border border-[#383838] transition-colors"
-            title="Delete element from library"
+            className="p-1 rounded bg-[#2a2a2a] hover:bg-rose-500/20 text-[#6e6e6e] hover:text-rose-400 disabled:text-rose-400 disabled:opacity-80 border border-[#383838] transition-colors"
+            title={isEffectivelyDeleting ? 'Deleting element...' : 'Delete element from library'}
           >
-            <Trash2 className="w-3 h-3" />
+            {isEffectivelyDeleting ? (
+              <Loader2 className="w-3 h-3 animate-spin text-rose-400" />
+            ) : (
+              <Trash2 className="w-3 h-3" />
+            )}
           </button>
         </div>
       </div>

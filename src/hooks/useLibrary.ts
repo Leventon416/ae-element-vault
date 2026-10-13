@@ -4,6 +4,7 @@ import {
   getLibrary,
   saveItem,
   deleteItem as deleteItemFromDb,
+  deleteItemFromMemory,
   initLibrary,
   getLibraryPath,
 } from '../lib/storageService';
@@ -25,6 +26,8 @@ export interface UseLibraryReturn {
   storageStatusMsg: string | null;
   libraryDb: LibraryDatabase | null;
   categoryCounts: Record<string, number>;
+  deletingIds: Set<string>;
+  deletionToast: string | null;
   // Actions
   setActiveCategory: (cat: string) => void;
   setSearchQuery: (query: string) => void;
@@ -70,6 +73,8 @@ export function useLibrary(): UseLibraryReturn {
   const [storagePath, setStoragePath] = useState<string>('');
   const [isStorageLoading, setIsStorageLoading] = useState<boolean>(false);
   const [storageStatusMsg, setStorageStatusMsg] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [deletionToast, setDeletionToast] = useState<string | null>(null);
 
   // Load database on mount
   const refreshLibrary = useCallback(async () => {
@@ -148,20 +153,44 @@ export function useLibrary(): UseLibraryReturn {
   }, []);
 
   const deleteItem = useCallback(async (itemId: string) => {
-    setIsStorageLoading(true);
+    // 1. Track deleting item in deletingIds Set
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.add(itemId);
+      return next;
+    });
+
+    // 2. Show temporary deletion toast with progress animation
+    setDeletionToast('Removing element from vault...');
+    setStorageStatusMsg('Removing element from vault...');
+
+    // 3. Optimistic state update: immediate in-memory and UI filter
+    deleteItemFromMemory(itemId);
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    setLibraryDb((prev) => (prev ? { ...prev, items: prev.items.filter((i) => i.id !== itemId) } : null));
+
     try {
+      // 4. Background deletion without redundant getLibrary() double-read
       await deleteItemFromDb(itemId);
-      const db = await getLibrary();
-      setLibraryDb(db);
-      setItems(db.items || []);
-      setStorageStatusMsg(`✓ Item removed`);
+      setDeletionToast('✓ Element removed from vault');
+      setStorageStatusMsg('✓ Item removed');
     } catch (err: any) {
+      console.error('Error removing item:', err);
+      setDeletionToast(`Error removing: ${err.message}`);
       setStorageStatusMsg(`Error removing: ${err.message}`);
+      refreshLibrary();
     } finally {
-      setIsStorageLoading(false);
-      setTimeout(() => setStorageStatusMsg(null), 3000);
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+      setTimeout(() => {
+        setDeletionToast(null);
+        setStorageStatusMsg(null);
+      }, 2500);
     }
-  }, []);
+  }, [refreshLibrary]);
 
   const addMockItem = useCallback(async () => {
     setIsStorageLoading(true);
@@ -376,6 +405,8 @@ export function useLibrary(): UseLibraryReturn {
     storageStatusMsg,
     libraryDb,
     categoryCounts,
+    deletingIds,
+    deletionToast,
     setActiveCategory,
     setSearchQuery,
     setSortBy,

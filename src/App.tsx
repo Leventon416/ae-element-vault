@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Check, X, AlertTriangle } from 'lucide-react';
+import { Check, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { Header, ViewMode } from './components/layout/Header';
 import { CategoryNav } from './components/layout/CategoryNav';
 import { SearchBar } from './components/layout/SearchBar';
@@ -246,6 +246,7 @@ export const App: React.FC = () => {
                 sortBy={library.sortBy}
                 filterEssentialOnly={library.filterEssentialOnly}
                 filterHasAudio={library.filterHasAudio}
+                deletingIds={library.deletingIds}
                 onInsert={handleInsertElement}
               />
             </ErrorBoundary>
@@ -385,6 +386,34 @@ export const App: React.FC = () => {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* Floating Deletion Progress Toast */}
+      {library.deletionToast && (
+        <div
+          id="deletion-toast"
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-6 z-50 max-w-sm p-3 rounded-xl bg-[#1e1b24]/95 border border-rose-500/50 shadow-2xl backdrop-blur-md flex items-center gap-3 text-white animate-in slide-in-from-bottom-4 duration-200"
+        >
+          <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 flex-shrink-0">
+            {library.deletingIds.size > 0 ? (
+              <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+            ) : (
+              <Check className="w-4 h-4 text-emerald-400" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p id="deletion-toast-msg" className="text-xs font-semibold text-rose-200 truncate">
+              {library.deletionToast}
+            </p>
+            {library.deletingIds.size > 0 && (
+              <div className="w-full bg-[#332228] h-1 rounded-full mt-1.5 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 rounded-full animate-pulse w-full" />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

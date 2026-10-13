@@ -28,6 +28,7 @@ interface LibraryCatalogViewProps {
   sortBy?: string;
   filterEssentialOnly?: boolean;
   filterHasAudio?: boolean;
+  deletingIds?: Set<string>;
 }
 
 export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
@@ -48,6 +49,7 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
   sortBy,
   filterEssentialOnly,
   filterHasAudio,
+  deletingIds,
 }) => {
   const [customizingItem, setCustomizingItem] = useState<LibraryItem | null>(null);
   // Persist parameter edits in local state while browsing across elements
@@ -128,6 +130,7 @@ export const LibraryCatalogView: React.FC<LibraryCatalogViewProps> = ({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             draggedItemId={draggedItem?.id}
+            deletingIds={deletingIds}
           />
         </div>
 

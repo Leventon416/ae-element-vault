@@ -31,6 +31,7 @@ interface AssetGridProps {
   onDragStart?: (item: LibraryItem, e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   draggedItemId?: string | null;
+  deletingIds?: Set<string>;
 }
 
 export const AssetGrid: React.FC<AssetGridProps> = ({
@@ -55,6 +56,7 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
   onDragStart,
   onDragEnd,
   draggedItemId,
+  deletingIds,
 }) => {
   const [viewDensity, setViewDensity] = useState<ViewDensity>(() => {
     try {
@@ -250,6 +252,7 @@ export const AssetGrid: React.FC<AssetGridProps> = ({
               isSelected={selectedItemId === item.id}
               isCompact={viewDensity === 'compact'}
               isFavorited={Boolean(favorites[item.id])}
+              isDeleting={Boolean(deletingIds?.has(item.id))}
               onSelect={(selected) => setSelectedItemId(selected.id)}
               onToggleFavorite={onToggleFavorite}
               onInsert={onInsert}
