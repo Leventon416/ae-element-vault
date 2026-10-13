@@ -15,7 +15,19 @@
      */
     function sanitizeFileName(str) {
         if (!str) return "unnamed_comp";
-        var clean = str.replace(/[^a-zA-Z0-9_\-]/g, "_");
+        var clean = String(str);
+        clean = clean.replace(/[\u2193\u21E3\u2B07\u21E9]|↓/g, "_down_");
+        clean = clean.replace(/[\u2191\u21E1\u2B06\u21E7]|↑/g, "_up_");
+        clean = clean.replace(/[\u2192\u21E2\u279C\u27A1\u21E8]|→/g, "_right_");
+        clean = clean.replace(/[\u2190\u21E0\u2B05\u21E6]|←/g, "_left_");
+        clean = clean.replace(/[\u2197]|↗/g, "_up_right_");
+        clean = clean.replace(/[\u2198]|↘/g, "_down_right_");
+        clean = clean.replace(/[\u2199]|↙/g, "_down_left_");
+        clean = clean.replace(/[\u2196]|↖/g, "_up_left_");
+        clean = clean.replace(/[\u2194]|↔/g, "_left_right_");
+        clean = clean.replace(/[\u2195]|↕/g, "_up_down_");
+        clean = clean.replace(/["'“”‘’\x60]/g, "_");
+        clean = clean.replace(/[^a-zA-Z0-9_\-]/g, "_");
         clean = clean.replace(/_+/g, "_");
         clean = clean.replace(/^_+|_+$/g, "");
         return clean.length > 0 ? clean : "comp";

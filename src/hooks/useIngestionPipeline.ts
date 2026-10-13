@@ -13,6 +13,7 @@ import {
   generateMockScrubFrames,
   ProjectScanResult,
   CompMetadata,
+  sanitizeFileName,
 } from '../lib/cepBridge';
 import { saveItem, getLibraryPath } from '../lib/storageService';
 import { LibraryItem, CustomizableProperty } from '../types/library';
@@ -352,8 +353,9 @@ export function useIngestionPipeline(
               ...(props?.egTemplateName ? ['Essential Graphics'] : []),
             ],
             egTemplateName: props?.egTemplateName || exp?.egTemplateName,
+            sourceProjectPath: filePath,
             sourceProject: fileName,
-            aepPath: exp?.aepPath || `${assetsFolder}\\${comp.name}.aep`,
+            aepPath: exp?.aepPath || `${assetsFolder}\\${sanitizeFileName(comp.name)}.aep`,
             previewPath: visuals?.thumb || generateMockThumbnailSvg(comp.name, comp.width, comp.height),
             previewFrames: visuals?.frames || generateMockScrubFrames(comp.name, 10, comp.width, comp.height),
             duration: comp.duration,

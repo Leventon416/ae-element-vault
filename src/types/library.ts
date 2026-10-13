@@ -58,6 +58,7 @@ export interface LibraryItem {
   category: string;
   tags: string[];
   sourceProject: string;
+  sourceProjectPath?: string;
   aepPath: string;
   previewPath: string;
   duration: number;

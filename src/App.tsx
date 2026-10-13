@@ -19,6 +19,7 @@ import {
   insertElement,
   formatInsertionTimecode,
   InsertionOptions,
+  sanitizeFileName,
 } from './lib/cepBridge';
 import { csBridge } from './utils/csinterface';
 
@@ -121,9 +122,12 @@ export const App: React.FC = () => {
     ) => {
       setInsertionError(null);
       try {
-        const targetAep = item.aepPath || item.sourceProject || `${library.storagePath}\\assets\\${item.name}.aep`;
+        const targetAep = item.aepPath || item.sourceProjectPath || item.sourceProject || `${library.storagePath}\\assets\\${sanitizeFileName(item.name)}.aep`;
         const res = await insertElement(targetAep, {
           elementName: item.name,
+          compId: item.id,
+          sourceProjectPath: item.sourceProjectPath || item.sourceProject,
+          sourceProject: item.sourceProject,
           customParams,
           ...retargetOptions,
         });

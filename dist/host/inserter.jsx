@@ -11,10 +11,189 @@
     }
 
     /**
-     * Imports an isolated .aep asset and inserts it into the active composition at the CTI.
+     * Sanitizes a string for safe filesystem filename matching / comparison
+     * Replaces Unicode symbols (such as '↓', '→', '↑', '←') with clean ascii representations ('down', 'right', 'up', 'left') or underscores to prevent corrupt Windows file paths.
+     * @param {string} str
+     * @returns {string}
+     */
+    function sanitizeFileName(str) {
+        if (!str) return "unnamed_comp";
+        var clean = String(str);
+        clean = clean.replace(/[\u2193\u21E3\u2B07\u21E9]|↓/g, "_down_");
+        clean = clean.replace(/[\u2191\u21E1\u2B06\u21E7]|↑/g, "_up_");
+        clean = clean.replace(/[\u2192\u21E2\u279C\u27A1\u21E8]|→/g, "_right_");
+        clean = clean.replace(/[\u2190\u21E0\u2B05\u21E6]|←/g, "_left_");
+        clean = clean.replace(/[\u2197]|↗/g, "_up_right_");
+        clean = clean.replace(/[\u2198]|↘/g, "_down_right_");
+        clean = clean.replace(/[\u2199]|↙/g, "_down_left_");
+        clean = clean.replace(/[\u2196]|↖/g, "_up_left_");
+        clean = clean.replace(/[\u2194]|↔/g, "_left_right_");
+        clean = clean.replace(/[\u2195]|↕/g, "_up_down_");
+        clean = clean.replace(/["'“”‘’\x60]/g, "_");
+        clean = clean.replace(/[^a-zA-Z0-9_\-]/g, "_");
+        clean = clean.replace(/_+/g, "_");
+        clean = clean.replace(/^_+|_+$/g, "");
+        return clean.length > 0 ? clean : "comp";
+    }
+
+    /**
+     * Safely compares composition names handling Unicode arrows, quotes, and whitespace
+     * @param {string} a
+     * @param {string} b
+     * @returns {boolean}
+     */
+    function isCompNameMatch(a, b) {
+        if (!a || !b) return false;
+        if (a === b) return true;
+
+        var trimA = String(a).replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+        var trimB = String(b).replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+        if (trimA === trimB) return true;
+
+        if (trimA.toLowerCase() === trimB.toLowerCase()) return true;
+
+        try {
+            if (decodeURIComponent(trimA) === trimB || trimA === decodeURIComponent(trimB)) {
+                return true;
+            }
+        } catch (eDec) {}
+
+        if (sanitizeFileName(trimA) === sanitizeFileName(trimB)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Safely checks if an item matches compId (numeric or 'element-{id}-{ts}')
+     * @param {CompItem} item
+     * @param {number|string} targetId
+     * @returns {boolean}
+     */
+    function isCompIdMatch(item, targetId) {
+        if (!item || targetId === null || targetId === undefined || targetId === "") return false;
+        if (item.id == targetId) return true;
+
+        var strId = String(targetId);
+        var match = strId.match(/element-(\d+)-/);
+        if (match && match[1] && item.id == parseInt(match[1], 10)) {
+            return true;
+        }
+        var parsed = parseInt(strId, 10);
+        if (!isNaN(parsed) && item.id === parsed) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Safely checks if a file path exists on disk, handling wrapping quotes and URI encoding
+     * @param {string} rawPath
+     * @returns {File|null}
+     */
+    function resolveExistingFile(rawPath) {
+        if (!rawPath || typeof rawPath !== "string") return null;
+        var p = rawPath.replace(/^["']|["']$/g, "");
+        if (!p) return null;
+
+        var f = new File(p);
+        if (f.exists) return f;
+
+        try {
+            var decoded = File.decode(p);
+            if (decoded && decoded !== p) {
+                var fDec = new File(decoded);
+                if (fDec.exists) return fDec;
+            }
+        } catch (eDec) {}
+
+        return null;
+    }
+
+    /**
+     * Finds or creates the "Element Vault Imports" folder in app.project
+     * @returns {FolderItem}
+     */
+    function getOrCreateImportsFolder() {
+        if (!app.project) return null;
+        for (var i = 1; i <= app.project.items.length; i++) {
+            var item = app.project.items[i];
+            if (item instanceof FolderItem && item.name === "Element Vault Imports") {
+                return item;
+            }
+        }
+        return app.project.items.addFolder("Element Vault Imports");
+    }
+
+    /**
+     * Recursively searches an imported FolderItem for target composition
+     * @param {FolderItem} folder
+     * @param {string} targetName
+     * @param {number|string} targetId
+     * @returns {CompItem|null}
+     */
+    function findCompInImportedFolder(folder, targetName, targetId) {
+        if (!folder || !(folder instanceof FolderItem)) return null;
+
+        var candidateComps = [];
+
+        function collectComps(f) {
+            for (var idx = 1; idx <= f.numItems; idx++) {
+                var it = f.item(idx);
+                if (it instanceof CompItem) {
+                    candidateComps.push(it);
+                } else if (it instanceof FolderItem) {
+                    collectComps(it);
+                }
+            }
+        }
+
+        collectComps(folder);
+
+        // 1. Match by name
+        if (targetName) {
+            for (var i = 0; i < candidateComps.length; i++) {
+                if (isCompNameMatch(candidateComps[i].name, targetName)) {
+                    return candidateComps[i];
+                }
+            }
+        }
+
+        // 2. Match by ID
+        if (targetId) {
+            for (var j = 0; j < candidateComps.length; j++) {
+                if (isCompIdMatch(candidateComps[j], targetId)) {
+                    return candidateComps[j];
+                }
+            }
+        }
+
+        // 3. Prioritize comp with usedIn.length === 0 (root comp)
+        for (var k = 0; k < candidateComps.length; k++) {
+            if (candidateComps[k].usedIn && candidateComps[k].usedIn.length === 0) {
+                return candidateComps[k];
+            }
+        }
+
+        // 4. Fallback to first comp
+        if (candidateComps.length > 0) {
+            return candidateComps[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * Imports an element and inserts it into the active composition at the CTI with 3-tier fallback.
+     *
+     * Tier 1: Check if matching comp already exists in app.project. If found, add directly to activeComp.layers.
+     * Tier 2: If aepPath exists on disk, import standalone .aep into "Element Vault Imports" and insert comp.
+     * Tier 3: If aepPath missing, but options.sourceProjectPath / sourceProject exists on disk, import master .aep,
+     *         find the target comp inside imported folder, and insert it into activeComp.
      *
      * @param {string} aepPath Path to target .aep file on disk
-     * @param {Object} [options] Insertion options: { elementName, targetTime, customParams }
+     * @param {Object} [options] Insertion options: { elementName, compId, sourceProjectPath, sourceProject, targetTime, customParams, ... }
      * @returns {string|Object} Success or error response
      */
     ElementVault.insertElementIntoActiveComp = function(aepPath, options) {
@@ -29,6 +208,7 @@
             }
         }
         var elementName = options.elementName || "Element";
+        var compId = options.compId;
 
         try {
             // 1. Active Composition Validation
@@ -41,98 +221,118 @@
                 return { success: false, error: noCompMsg };
             }
 
-            // 2. Asset File Validation
-            if (!aepPath) {
-                var noPathMsg = "No asset file path provided for insertion.";
-                if (typeof ElementVault.formatError === "function") {
-                    return ElementVault.formatError(noPathMsg);
-                }
-                return { success: false, error: noPathMsg };
-            }
-
-            var assetFile = new File(aepPath);
-            if (!assetFile.exists) {
-                var missingFileMsg = "Target asset file does not exist on disk: " + aepPath;
-                if (typeof ElementVault.formatError === "function") {
-                    return ElementVault.formatError(missingFileMsg);
-                }
-                return { success: false, error: missingFileMsg };
-            }
-
-            // 3. Undo Group Encapsulation
+            // 2. Undo Group Encapsulation
             app.beginUndoGroup("Element Vault - Insert " + elementName);
 
-            // 4. Project Bin Organization
-            var importsFolder = null;
-            for (var i = 1; i <= app.project.items.length; i++) {
-                if (app.project.items[i] instanceof FolderItem && app.project.items[i].name === "Element Vault Imports") {
-                    importsFolder = app.project.items[i];
-                    break;
-                }
-            }
-            if (!importsFolder) {
-                importsFolder = app.project.items.addFolder("Element Vault Imports");
-            }
-
-            // 5. Import Mini-AEP File
-            var importOptions = new ImportOptions(assetFile);
-            var importedFolder = app.project.importFile(importOptions);
-
-            if (!importedFolder) {
-                app.endUndoGroup();
-                var importFailedMsg = "Failed to import asset file into project.";
-                if (typeof ElementVault.formatError === "function") {
-                    return ElementVault.formatError(importFailedMsg);
-                }
-                return { success: false, error: importFailedMsg };
-            }
-
-            // Move importedFolder into importsFolder to keep Project panel organized
-            if (importsFolder && importedFolder.parentFolder !== importsFolder) {
-                try {
-                    importedFolder.parentFolder = importsFolder;
-                } catch (eParent) {}
-            }
-
-            // 6. Locate the Master/Root Composition
             var masterComp = null;
-            if (importedFolder instanceof CompItem) {
-                masterComp = importedFolder;
-            } else if (importedFolder instanceof FolderItem) {
-                var candidateComps = [];
-                for (var j = 1; j <= importedFolder.numItems; j++) {
-                    var item = importedFolder.item(j);
-                    if (item instanceof CompItem) {
-                        candidateComps.push(item);
-                        // Prioritize comp with usedIn.length === 0
-                        if (item.usedIn && item.usedIn.length === 0) {
-                            masterComp = item;
-                            break;
+            var insertionTier = 0;
+
+            // Tier 1: Check if a composition matching options.elementName or options.compId already exists in app.project
+            if (app.project && app.project.numItems > 0) {
+                if (compId !== undefined && compId !== null && compId !== "") {
+                    for (var i = 1; i <= app.project.numItems; i++) {
+                        var item = app.project.item(i);
+                        if (item && item instanceof CompItem && item !== activeComp) {
+                            if (isCompIdMatch(item, compId)) {
+                                masterComp = item;
+                                insertionTier = 1;
+                                break;
+                            }
                         }
                     }
                 }
 
-                if (!masterComp && candidateComps.length > 0) {
-                    // Try match by elementName
-                    for (var k = 0; k < candidateComps.length; k++) {
-                        if (candidateComps[k].name === elementName) {
-                            masterComp = candidateComps[k];
-                            break;
+                if (!masterComp && elementName) {
+                    for (var n = 1; n <= app.project.numItems; n++) {
+                        var itemN = app.project.item(n);
+                        if (itemN && itemN instanceof CompItem && itemN !== activeComp) {
+                            if (isCompNameMatch(itemN.name, elementName)) {
+                                masterComp = itemN;
+                                insertionTier = 1;
+                                break;
+                            }
                         }
                     }
-                    if (!masterComp) {
-                        masterComp = candidateComps[0];
+                }
+            }
+
+            // Tier 2: If aepPath exists on disk (new File(aepPath).exists), import standalone .aep
+            if (!masterComp && aepPath) {
+                var assetFile = resolveExistingFile(aepPath);
+                if (assetFile && assetFile.exists) {
+                    var importsFolder = getOrCreateImportsFolder();
+                    var importOptions = new ImportOptions(assetFile);
+                    var importedItem = app.project.importFile(importOptions);
+
+                    if (importedItem) {
+                        if (importsFolder && importedItem.parentFolder !== importsFolder) {
+                            try {
+                                importedItem.parentFolder = importsFolder;
+                            } catch (eParent) {}
+                        }
+
+                        if (importedItem instanceof CompItem) {
+                            masterComp = importedItem;
+                            insertionTier = 2;
+                        } else if (importedItem instanceof FolderItem) {
+                            masterComp = findCompInImportedFolder(importedItem, elementName, compId);
+                            if (masterComp) {
+                                insertionTier = 2;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tier 3: If aepPath does not exist on disk, but options.sourceProjectPath or options.sourceProject is provided and exists on disk
+            if (!masterComp) {
+                var masterCandidatePath = options.sourceProjectPath || options.sourceProject;
+                var masterFile = resolveExistingFile(masterCandidatePath);
+                if (!masterFile && options.sourceProject && options.sourceProject !== masterCandidatePath) {
+                    masterFile = resolveExistingFile(options.sourceProject);
+                }
+                if (!masterFile && options.sourceProjectPath && options.sourceProjectPath !== masterCandidatePath) {
+                    masterFile = resolveExistingFile(options.sourceProjectPath);
+                }
+
+                if (masterFile && masterFile.exists) {
+                    var importsFolderTier3 = getOrCreateImportsFolder();
+                    var masterImportOptions = new ImportOptions(masterFile);
+                    var importedMasterItem = app.project.importFile(masterImportOptions);
+
+                    if (importedMasterItem) {
+                        if (importsFolderTier3 && importedMasterItem.parentFolder !== importsFolderTier3) {
+                            try {
+                                importedMasterItem.parentFolder = importsFolderTier3;
+                            } catch (eParent3) {}
+                        }
+
+                        if (importedMasterItem instanceof CompItem) {
+                            masterComp = importedMasterItem;
+                            insertionTier = 3;
+                        } else if (importedMasterItem instanceof FolderItem) {
+                            masterComp = findCompInImportedFolder(importedMasterItem, elementName, compId);
+                            if (masterComp) {
+                                insertionTier = 3;
+                            }
+                        }
                     }
                 }
             }
 
             if (!masterComp) {
                 app.endUndoGroup();
-                var noMasterMsg = "Could not find a master composition within the imported asset.";
-                if (typeof ElementVault.formatError === "function") {
-                    return ElementVault.formatError(noMasterMsg);
+                var notFoundMsg = "Could not locate composition '" + elementName + "' in project or on disk.";
+                if (aepPath) {
+                    notFoundMsg += " Standalone AEP: " + aepPath;
                 }
-                return { success: false, error: noMasterMsg };
+                if (options.sourceProjectPath || options.sourceProject) {
+                    notFoundMsg += " Master Project: " + (options.sourceProjectPath || options.sourceProject);
+                }
+                if (typeof ElementVault.formatError === "function") {
+                    return ElementVault.formatError(notFoundMsg);
+                }
+                return { success: false, error: notFoundMsg };
             }
 
             // 7. Smart Retargeting, Timeline Placement & Alignment
@@ -186,15 +386,12 @@
             var posY = activeHeight / 2;
 
             if (positionMode === "lower-third") {
-                // Lower 20% safe margin
                 posX = activeWidth / 2;
                 posY = activeHeight * 0.8;
             } else if (positionMode === "top-third" || positionMode === "top-banner") {
-                // Upper 25% safe margin
                 posX = activeWidth / 2;
                 posY = activeHeight * 0.25;
             } else {
-                // "center"
                 posX = activeWidth / 2;
                 posY = activeHeight / 2;
             }
@@ -225,9 +422,7 @@
                                     for (var p = 1; p <= egProp.numProperties; p++) {
                                         var prop = egProp.property(p);
                                         if (prop.name === paramId) {
-                                            if (typeof val === "string") {
-                                                prop.setValue(val);
-                                            } else if (typeof val === "number" || typeof val === "boolean") {
+                                            if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
                                                 prop.setValue(val);
                                             }
                                         }
@@ -254,7 +449,8 @@
                 positionApplied: [Math.round(posX * 10) / 10, Math.round(posY * 10) / 10],
                 originalDimensions: [masterWidth, masterHeight],
                 targetDimensions: [activeWidth, activeHeight],
-                fpsMatched: fpsMatched
+                fpsMatched: fpsMatched,
+                tier: insertionTier
             };
 
             if (typeof ElementVault.formatSuccess === "function") {
